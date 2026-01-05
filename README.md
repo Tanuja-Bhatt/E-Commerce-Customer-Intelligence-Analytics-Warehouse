@@ -24,9 +24,7 @@ ecommerce-customer-intelligence/
 │   ├── 06_customer_behavior_summary.sql
 │   └── 07_business_queries.sql
 │
-├── docs/
-│   ├── assumptions_and_limitations.md
-│   └── warehouse_design.md
+
 ```
 
 
