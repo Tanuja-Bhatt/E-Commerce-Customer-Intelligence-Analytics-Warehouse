@@ -95,13 +95,153 @@ Key modeling choices:
 * SQL-only business analysis
 
 ---
+# Assumptions and Limitations
 
+## Assumptions
+- Customer churn is defined based on inactivity relative to the dataset’s latest transaction date.
+- Customer lifecycle starts at the first recorded purchase.
+- Discounts are assumed to be proportional at the order-item level.
+- All transactions are treated as completed (no payment failure data available).
+
+## Limitations
+- Dataset represents historical data and does not reflect real-time behavior.
+- No product return or refund information is available.
+- Customer acquisition channels are not included.
+- Cost price and margin details are not available for products.
+
+
+# Warehouse Design & Data Modeling
+
+## Overview
+This project follows a layered analytics warehouse design to transform raw transactional data into customer-focused business insights using SQL.
+
+The primary goal of the warehouse is to support **customer lifecycle, retention, churn, and lifetime value analysis**, rather than simple sales reporting.
+
+---
+
+## Data Architecture
+
+The warehouse is organized into four logical layers:
+
+### 1. Raw Source Layer
+**Table:** `raw_superstore`
+
+- Represents the original CSV data ingested as-is
+- All columns stored as TEXT to avoid ingestion failures
+- No transformations or assumptions applied
+
+Purpose:
+- Preserve source truth
+- Enable reproducible transformations
+- Avoid data loss during ingestion
+
+---
+
+### 2. Clean Staging Layer
+**Table:** `stg_superstore_clean`
+
+- Data types explicitly cast (dates, numerics)
+- Invalid or malformed values handled safely
+- Still retains row-level transactional granularity
+
+Purpose:
+- Prepare reliable data for downstream modeling
+- Separate data quality handling from analytics logic
+
+---
+
+### 3. Entity Staging Layer
+**Tables:**
+- `raw_orders`
+- `raw_customers`
+- `raw_products`
+- `raw_order_items`
+
+Each table represents a single business entity.
+
+| Table | Grain |
+|------|------|
+| raw_orders | One row per order |
+| raw_customers | One row per customer |
+| raw_products | One row per product |
+| raw_order_items | One row per order-product |
+
+Purpose:
+- Normalize transactional data
+- Reduce duplication
+- Enable clean joins for analytics modeling
+
+---
+
+### 4. Analytics Layer
+**Core Fact Table:** `fact_customer_orders`
+
+**Grain:** One row per customer per order
+
+This table is the backbone of the warehouse and enables:
+- Purchase sequence analysis
+- Time gaps between orders
+- Customer-level aggregation (LTV, retention)
+
+Derived using:
+- Aggregations
+- Window functions (`ROW_NUMBER`, `LAG`)
+- Explicit grain control
+
+---
+
+### 5. Dimension Tables
+
+#### `dim_customers`
+Captures customer lifecycle attributes:
+- First and last purchase dates
+- Total orders
+- Customer age
+- Active vs churned status
+
+Churn is defined **relative to the dataset’s latest transaction date** to ensure correct classification for historical data.
+
+---
+
+### 6. Insight Layer
+**Table:** `customer_behavior_summary`
+
+One row per customer summarizing:
+- Lifetime value (LTV)
+- Average order value
+- Purchase frequency
+- Average days between purchases
+- Value segmentation (High / Mid / Low)
+
+Purpose:
+- Provide business-ready metrics
+- Enable stakeholder-friendly querying
+- Serve as the primary insight consumption layer
+
+---
+
+## Key Design Decisions
+
+- **Customer-first modeling:** Fact table designed around customer behavior, not product sales.
+- **Layer separation:** Raw, staging, and analytics logic intentionally isolated.
+- **No hard-coded assumptions:** All derived fields documented and reproducible.
+- **SQL-only approach:** Entire pipeline implemented using PostgreSQL SQL.
+
+---
+
+## Why This Design Works
+
+This warehouse design allows analysts to:
+- Answer behavioral questions without rewriting complex SQL
+- Extend the model with new dimensions or metrics
+- Maintain transparency and auditability of transformations
+
+The design mirrors real-world analytics engineering practices used in modern data teams.
 
 ####  Repository Structure
 
 ```
 sql/    → all transformation & analytics queries
-docs/   → design notes and assumptions
 ```
 
 ---
